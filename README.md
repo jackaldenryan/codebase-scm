@@ -2,6 +2,41 @@
 
 Give your coding agent an **index of the codebase that can compute logical consequences** — a structural causal model (SCM) of your software, versioned next to the code, in the spirit of Judea Pearl's structural causal models (*Causality*, 2000; *The Book of Why*, 2018).
 
+## See it work
+
+Real example from a Unity game's SCM (63 nodes: economy functions, tuning
+constants, build jobs, test suites). The designer says: *raise the top-tier
+wash fare $170 → $200. What breaks? What do we run?*
+
+Without a model, the agent greps pricing code, reads formula functions,
+traces callers by hand across files, and guesses which test suite covers
+fares — minutes of exploration, hundreds of thousands of tokens, and no
+guarantee it found every caller. With the SCM, two local commands,
+milliseconds, zero LLM tokens:
+
+```bash
+$ python3 scripts/propagate.py .codebase-scm/L4-function/scm.yaml --set fare-miyagi-170=200
+
+Changed: fare-miyagi-170
+Blast radius: fare-miyagi-170, game-package-price, game-price
+```
+
+The fare constant feeds exactly one pricing function plus its alias — the
+complete review set, computed from the graph. Then:
+
+```bash
+$ python3 scripts/propagate.py .codebase-scm/L4-function/scm.yaml --tests game-package-price
+
+  Run:
+    job-core-economy-check  (covers game-package-price)
+```
+
+Change → review set → test suite, each step derived, each step evidenced.
+And where the model *can't* compute, it says so instead of inventing: nodes
+without equations report `unknown` with the reason attached
+(`needs-parents`, `grammar-limited`, `unmeasured`, `deferred`) — a pointer
+to the next equation or test to write, not a hallucinated answer.
+
 ## Motivation
 
 A coding agent dropped into a repository sees files. What it lacks is a *map of what affects what*: which services die when a dependency fails, what a config flip touches, which tests guard a change, what a constant retune ripples into. Today agents answer those questions by pattern-matching over code text — fluent, confident, and frequently wrong about cross-cutting impact.
