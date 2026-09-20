@@ -1,0 +1,40 @@
+# Template for <repo>/.codebase-scm/<L#>-<slug>/scm.yaml
+# Copy this file to start a new SCM. Delete all example entries.
+# See the codebase-scm SKILL.md (sections 2, 3, 5) for the rules.
+
+version: 1
+codebase: REPLACE-WITH-REPO-NAME
+granularity: L2-module # one of: L1-landscape, L2-module, L3-unit, L4-function
+updated: REPLACE-WITH-DATE-YYYY-MM-DD
+
+nodes:
+  - id: example-service
+    type: service # service | module | data-store | queue | flag | config | slo | test-suite | external
+    description: REPLACE-WITH-ONE-LINE-DESCRIPTION
+    evidence:
+      - path/to/manifest-or-config
+    owns_state: false
+    slo: null # e.g. "p99 < 300ms" or null
+    domain: null # bool | numeric | enum:[a,b] — required if default or model is set
+    default: null
+    model: null # or {kind: bool|numeric, expr: "parent_id and other_parent"}
+    unmodeled_reason: null # or {reason: needs-parents|grammar-limited|unmeasured|deferred, detail: "..."} — required when the node has parents but no model.expr
+
+edges:
+  - from: example-service
+    to: example-service
+    type: calls # calls | data-flow | fails-if | slows-when | configures | covers | refines
+    description: REPLACE-WITH-WHAT-THIS-EDGE-MEANS
+    evidence:
+      - path/to/source-of-this-fact
+    effect: null # or {description: ..., magnitude: ..., observed_in: ...}
+
+open_questions:
+  - question: REPLACE-WITH-ANYTHING-UNCERTAIN
+    owner: REPLACE-WITH-NAME
+    deferred_until: REPLACE-WITH-DATE-YYYY-MM-DD
+
+changelog:
+  - date: REPLACE-WITH-DATE-YYYY-MM-DD
+    author: REPLACE-WITH-NAME
+    change: Initial SCM created at this granularity level.

@@ -1,0 +1,78 @@
+version: 1
+codebase: example
+granularity: L1-landscape
+updated: 2026-09-19
+
+nodes:
+  - id: inventory
+    type: service
+    description: inventory service
+    evidence: [elicited:example]
+    owns_state: true
+    slo: null
+    domain: bool
+    default: true
+    model: null
+  - id: cart
+    type: service
+    description: cart service
+    evidence: [elicited:example]
+    owns_state: false
+    slo: null
+    domain: bool
+    default: true
+    model: null
+  - id: checkout
+    type: service
+    description: checkout is up only if cart and inventory are up
+    evidence: [elicited:example]
+    owns_state: false
+    slo: p99 < 300ms
+    domain: bool
+    default: true
+    model:
+      kind: bool
+      expr: cart and inventory
+  - id: checkout-p99
+    type: slo
+    description: checkout latency ms
+    evidence: [elicited:example]
+    owns_state: false
+    slo: p99 < 300ms
+    domain: numeric
+    default: 120
+    model:
+      kind: numeric
+      expr: 80 + (40 if not inventory else 0) + (20 if not cart else 0)
+
+edges:
+  - from: inventory
+    to: checkout
+    type: fails-if
+    description: checkout fails if inventory is down
+    evidence: [elicited:example]
+    effect: null
+  - from: cart
+    to: checkout
+    type: fails-if
+    description: checkout fails if cart is down
+    evidence: [elicited:example]
+    effect: null
+  - from: inventory
+    to: checkout-p99
+    type: slows-when
+    description: inventory down adds latency
+    evidence: [elicited:example]
+    effect: {description: "+40ms", magnitude: "40ms", observed_in: example}
+  - from: cart
+    to: checkout-p99
+    type: slows-when
+    description: cart down adds latency
+    evidence: [elicited:example]
+    effect: {description: "+20ms", magnitude: "20ms", observed_in: example}
+
+open_questions: []
+changelog:
+  - date: 2026-09-19
+    author: skill
+    change: Example SCM for propagate.py
