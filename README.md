@@ -4,38 +4,31 @@ Give your coding agent an **index of the codebase that can compute logical conse
 
 ## See it work
 
-Real example from a Unity game's SCM (63 nodes: economy functions, tuning
-constants, build jobs, test suites). The designer says: *raise the top-tier
-wash fare $170 → $200. What breaks? What do we run?*
+Take the bundled example: a checkout service depending on a cart and an
+inventory service, with a latency SLO. On call: *the inventory service is
+flapping — what breaks, and by how much?*
 
-Without a model, the agent greps pricing code, reads formula functions,
-traces callers by hand across files, and guesses which test suite covers
-fares — minutes of exploration, hundreds of thousands of tokens, and no
-guarantee it found every caller. With the SCM, two local commands,
-milliseconds, zero LLM tokens:
-
-```bash
-$ python3 scripts/propagate.py .codebase-scm/L4-function/scm.yaml --set fare-miyagi-170=200
-
-Changed: fare-miyagi-170
-Blast radius: fare-miyagi-170, game-package-price, game-price
-```
-
-The fare constant feeds exactly one pricing function plus its alias — the
-complete review set, computed from the graph. Then:
+Without a model, the agent greps for callers, reads checkout code, hunts the
+latency budget across files, and guesses at the blast radius — minutes of
+exploration, hundreds of thousands of tokens, and no guarantee it found every
+dependent. With the SCM, one local command, milliseconds, zero LLM tokens
+(try it yourself — this ships in `scripts/`):
 
 ```bash
-$ python3 scripts/propagate.py .codebase-scm/L4-function/scm.yaml --tests game-package-price
+$ python3 scripts/propagate.py scripts/example-scm.yaml --set inventory=false
 
-  Run:
-    job-core-economy-check  (covers game-package-price)
+Changed: inventory, checkout, checkout-p99
+Blast radius: checkout, checkout-p99, inventory
 ```
 
-Change → review set → test suite, each step derived, each step evidenced.
-And where the model *can't* compute, it says so instead of inventing: nodes
-without equations report `unknown` with the reason attached
-(`needs-parents`, `grammar-limited`, `unmeasured`, `deferred`) — a pointer
-to the next equation or test to write, not a hallucinated answer.
+Not just *what* breaks but *how much*: `checkout` goes down (boolean
+`fails-if` chain) and the `checkout-p99` SLO degrades 80 → 120ms (numeric
+equation) — boolean and quantitative consequences computed from the graph in
+a single pass. Each claim traces back to an evidenced edge or equation in
+`scm.yaml`, and where the model *can't* compute, it reports `unknown` with
+the reason attached (`needs-parents`, `grammar-limited`, `unmeasured`,
+`deferred`) — a pointer to the next equation or test to write, not a
+hallucinated answer.
 
 ## Motivation
 
