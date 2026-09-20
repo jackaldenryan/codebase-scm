@@ -11,8 +11,9 @@ service is down — what breaks, and by how much?*
 
 Without a model, the agent must search for callers, read service code, and
 piece together the latency budget file by file — each step a model call, with
-no completeness guarantee on the result. With the SCM, one local command,
-milliseconds, zero LLM tokens:
+no completeness guarantee on the result. With the SCM, one local command
+that runs with no model call at all; the agent spends tokens only reading
+the few-line result:
 
 ```bash
 $ python3 scripts/propagate.py scripts/example-saas.yaml --set billing-service=false
