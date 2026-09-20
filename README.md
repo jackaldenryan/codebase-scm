@@ -9,10 +9,10 @@ yourself): a public API over auth and billing services, a notification
 queue, an SSO flag, and an invoice-latency SLO. On call: *the billing
 service is down — what breaks, and by how much?*
 
-Without a model, the agent greps for callers, reads service code, hunts the
-latency budget across files, and guesses at the blast radius — minutes of
-exploration, hundreds of thousands of tokens, and no guarantee it found every
-dependent. With the SCM, one local command, milliseconds, zero LLM tokens:
+Without a model, the agent must search for callers, read service code, and
+piece together the latency budget file by file — each step a model call, with
+no completeness guarantee on the result. With the SCM, one local command,
+milliseconds, zero LLM tokens:
 
 ```bash
 $ python3 scripts/propagate.py scripts/example-saas.yaml --set billing-service=false
