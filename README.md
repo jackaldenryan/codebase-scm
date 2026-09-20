@@ -38,24 +38,36 @@ The two skills split the job: **scm-setup** owns the model itself (granularity l
 
 ## Quickstart — any coding agent
 
-The plugin is a standard agent-skills layout and needs no special runtime: each skill is a `SKILL.md` prompt plus plain-Python scripts.
+One terminal command, no cloning, no Python package:
 
-**Claude Code** — install as a plugin:
 ```bash
-# from a local checkout:
-claude --plugin-dir ./codebase-scm
-# or add it to a skills directory; it loads as codebase-scm@skills-dir
+curl -fsSL https://raw.githubusercontent.com/jackaldenryan/codebase-scm/main/install.sh | bash
 ```
-This gives you `/codebase-scm:scm-setup` and `/codebase-scm:scm-usage`.
 
-**OpenCode (and similar skills-aware agents)** — point the agent at the skill files:
+This downloads the plugin into `~/.agents/skills/codebase-scm/` (override with
+`bash -s -- --dir <path>`, pin a version with `--ref <tag>`), verifies its
+contents, and self-checks the bundled example. It needs only `curl`, `tar`,
+and `python3` — the scripts additionally want PyYAML at use time
+(`python3 -m pip install pyyaml`).
+
+Then point your agent at it:
+
+**Claude Code** — install straight into the skills directory so it loads as a
+plugin (both skills, no further setup):
 ```bash
-git clone https://github.com/jackaldenryan/codebase-scm
-# then tell the agent: "load skills from ./codebase-scm/skills/ and follow them"
+curl -fsSL https://raw.githubusercontent.com/jackaldenryan/codebase-scm/main/install.sh | bash -s -- --dir ~/.claude/skills/codebase-scm
 ```
-Only `SKILL.md` prompting plus `python3 scripts/*.py` is required — there is nothing Claude-specific in the tooling.
+This gives you `/codebase-scm:scm-setup` and `/codebase-scm:scm-usage`
+(`codebase-scm@skills-dir`). Alternatively `claude --plugin-dir <install-dir>`.
 
-**Any other agent (or no agent)** — read `skills/scm-setup/SKILL.md` and follow it by hand; run the scripts directly:
+**OpenCode (and similar skills-aware agents)** — run the default one-liner,
+then tell the agent: "load skills from `~/.agents/skills/codebase-scm/skills/`
+and follow them." Only `SKILL.md` prompting plus `python3 scripts/*.py` is
+required — there is nothing Claude-specific in the tooling.
+
+**Any other agent (or no agent)** — read `skills/scm-setup/SKILL.md` and
+follow it by hand; run the scripts directly (paths below are relative to
+wherever you installed):
 ```bash
 cp templates/scm.template.yaml myrepo/.codebase-scm/L1-landscape/scm.yaml
 # ... fill it in per the skill ...
