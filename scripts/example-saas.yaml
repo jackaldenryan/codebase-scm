@@ -1,0 +1,102 @@
+version: 1
+codebase: example-saas
+granularity: L1-landscape
+updated: 2026-09-20
+
+nodes:
+  - id: auth-service
+    type: service
+    description: SSO and session auth behind the API
+    evidence: [elicited:example]
+    owns_state: true
+    slo: null
+    domain: bool
+    default: true
+    model: null
+  - id: billing-service
+    type: service
+    description: subscriptions and invoicing
+    evidence: [elicited:example]
+    owns_state: true
+    slo: null
+    domain: bool
+    default: true
+    model: null
+  - id: notification-queue
+    type: queue
+    description: async receipts and dunning emails
+    evidence: [elicited:example]
+    owns_state: true
+    slo: null
+    domain: bool
+    default: true
+    model: null
+  - id: sso-required
+    type: flag
+    description: tenant flag forcing SSO login
+    evidence: [elicited:example]
+    owns_state: false
+    slo: null
+    domain: bool
+    default: true
+    model: null
+  - id: api
+    type: service
+    description: public API is up only if auth and billing are up
+    evidence: [elicited:example]
+    owns_state: false
+    slo: p99 < 500ms
+    domain: bool
+    default: true
+    model:
+      kind: bool
+      expr: auth_service and billing_service
+  - id: invoice-p99
+    type: slo
+    description: invoice render latency ms
+    evidence: [elicited:example]
+    owns_state: false
+    slo: p99 < 500ms
+    domain: numeric
+    default: 150
+    model:
+      kind: numeric
+      expr: 150 + (100 if not billing_service else 0) + (50 if not notification_queue else 0)
+
+edges:
+  - from: auth-service
+    to: api
+    type: fails-if
+    description: api fails if auth is down
+    evidence: [elicited:example]
+    effect: null
+  - from: billing-service
+    to: api
+    type: fails-if
+    description: api fails if billing is down
+    evidence: [elicited:example]
+    effect: null
+  - from: sso-required
+    to: api
+    type: configures
+    description: SSO flag changes the login behavior of the api
+    evidence: [elicited:example]
+    effect: null
+  - from: billing-service
+    to: invoice-p99
+    type: slows-when
+    description: billing down adds latency
+    evidence: [elicited:example]
+    effect: {description: "+100ms", magnitude: "100ms", observed_in: example}
+  - from: notification-queue
+    to: invoice-p99
+    type: slows-when
+    description: queue backlog adds latency
+    evidence: [elicited:example]
+    effect: {description: "+50ms", magnitude: "50ms", observed_in: example}
+
+open_questions: []
+changelog:
+  - date: 2026-09-20
+    author: skill
+    change: SaaS example SCM for the README demo.

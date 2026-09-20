@@ -4,31 +4,30 @@ Give your coding agent an **index of the codebase that can compute logical conse
 
 ## See it work
 
-Take the bundled example: a checkout service depending on a cart and an
-inventory service, with a latency SLO. On call: *the inventory service is
-flapping — what breaks, and by how much?*
+Take the bundled SaaS example (`scripts/example-saas.yaml` — run it
+yourself): a public API over auth and billing services, a notification
+queue, an SSO flag, and an invoice-latency SLO. On call: *the billing
+service is down — what breaks, and by how much?*
 
-Without a model, the agent greps for callers, reads checkout code, hunts the
+Without a model, the agent greps for callers, reads service code, hunts the
 latency budget across files, and guesses at the blast radius — minutes of
 exploration, hundreds of thousands of tokens, and no guarantee it found every
-dependent. With the SCM, one local command, milliseconds, zero LLM tokens
-(try it yourself — this ships in `scripts/`):
+dependent. With the SCM, one local command, milliseconds, zero LLM tokens:
 
 ```bash
-$ python3 scripts/propagate.py scripts/example-scm.yaml --set inventory=false
+$ python3 scripts/propagate.py scripts/example-saas.yaml --set billing-service=false
 
-Changed: inventory, checkout, checkout-p99
-Blast radius: checkout, checkout-p99, inventory
+Changed: billing-service, api, invoice-p99
+Blast radius: api, billing-service, invoice-p99
 ```
 
-Not just *what* breaks but *how much*: `checkout` goes down (boolean
-`fails-if` chain) and the `checkout-p99` SLO degrades 80 → 120ms (numeric
-equation) — boolean and quantitative consequences computed from the graph in
-a single pass. Each claim traces back to an evidenced edge or equation in
-`scm.yaml`, and where the model *can't* compute, it reports `unknown` with
-the reason attached (`needs-parents`, `grammar-limited`, `unmeasured`,
-`deferred`) — a pointer to the next equation or test to write, not a
-hallucinated answer.
+Not just *what* breaks but *how much*: `api` goes down (boolean `fails-if`
+chain) and `invoice-p99` degrades 150 → 250ms (numeric equation) — boolean
+and quantitative consequences computed from the graph in a single pass. Each
+claim traces back to an evidenced edge or equation in `scm.yaml`, and where
+the model *can't* compute, it reports `unknown` with the reason attached
+(`needs-parents`, `grammar-limited`, `unmeasured`, `deferred`) — a pointer
+to the next equation or test to write, not a hallucinated answer.
 
 ## Motivation
 
@@ -106,18 +105,18 @@ python3 scripts/propagate.py myrepo/.codebase-scm/L1-landscape/scm.yaml --set so
 ## Five-minute tour
 
 ```bash
-# 1. Validate the bundled example
-python3 scripts/validate.py scripts/example-scm.yaml
-# nodes: 4, edges: 4 / PASS: SCM valid
+# 1. Validate the bundled SaaS example
+python3 scripts/validate.py scripts/example-saas.yaml
+# nodes: 6, edges: 5 / PASS: SCM valid
 
 # 2. Simulate an intervention (Pearl do-operator: clamp + re-evaluate downstream)
-python3 scripts/propagate.py scripts/example-scm.yaml --set inventory=false
-# Changed: inventory, checkout, checkout-p99 ...
+python3 scripts/propagate.py scripts/example-saas.yaml --set billing-service=false
+# Changed: billing-service, api, invoice-p99 ...
 
 # 3. Trace what something calls, propagate a failure, select affected tests
-python3 scripts/propagate.py scripts/example-scm.yaml --trace cart
-python3 scripts/propagate.py scripts/example-scm.yaml --fail cart
-python3 scripts/propagate.py scripts/example-scm.yaml --tests cart
+python3 scripts/propagate.py scripts/example-saas.yaml --trace api
+python3 scripts/propagate.py scripts/example-saas.yaml --fail billing-service
+python3 scripts/propagate.py scripts/example-saas.yaml --tests api
 ```
 
 Then build a real one: invoke **scm-setup** inside your repository, confirm a granularity level (start with L1 landscape), and follow the incremental build loop — one bounded area at a time, evidence on everything, `validate.py` after every write.
