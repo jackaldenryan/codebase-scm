@@ -2,34 +2,6 @@
 
 Give your coding agent an **index of the codebase that can compute logical consequences** — a structural causal model (SCM) of your software, versioned next to the code, in the spirit of Judea Pearl's structural causal models (*Causality*, 2000; *The Book of Why*, 2018).
 
-## See it work
-
-Take the bundled SaaS example (`scripts/example-saas.yaml` — run it
-yourself): a public API over auth and billing services, a notification
-queue, an SSO flag, and an invoice-latency SLO. On call: *the billing
-service is down — what breaks, and by how much?*
-
-Without a model, the agent must search for callers, read service code, and
-piece together the latency budget file by file — each step a model call, with
-no completeness guarantee on the result. With the SCM, one local command
-that runs with no model call at all; the agent spends tokens only reading
-the few-line result:
-
-```bash
-$ python3 scripts/propagate.py scripts/example-saas.yaml --set billing-service=false
-
-Changed: billing-service, api, invoice-p99
-Blast radius: api, billing-service, invoice-p99
-```
-
-Not just *what* breaks but *how much*: `api` goes down (boolean `fails-if`
-chain) and `invoice-p99` degrades 150 → 250ms (numeric equation) — boolean
-and quantitative consequences computed from the graph in a single pass. Each
-claim traces back to an evidenced edge or equation in `scm.yaml`, and where
-the model *can't* compute, it reports `unknown` with the reason attached
-(`needs-parents`, `grammar-limited`, `unmeasured`, `deferred`) — a pointer
-to the next equation or test to write, not a hallucinated answer.
-
 ## Motivation
 
 A coding agent dropped into a repository sees files. What it lacks is a *map of what affects what*: which services die when a dependency fails, what a config flip touches, which tests guard a change, what a constant retune ripples into. Today agents answer those questions by pattern-matching over code text — fluent, confident, and frequently wrong about cross-cutting impact.
