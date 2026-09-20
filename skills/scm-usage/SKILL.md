@@ -124,5 +124,22 @@ layers: any non-`refines` incoming edge may serve as an equation input
 regardless of its type; if the math needs an input with no edge, add the
 edge (with evidence) first, never math from thin air.
 
+## 8. Visualization ("show me the graph")
+
+When the user asks to see the SCM/graph, generate the interactive page and
+open it — do not describe the graph in prose instead:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/visualize.py <scm.yaml> --open
+```
+
+This writes a self-contained `graph.html` next to the SCM (override with
+`-o`) and pops it in a window: layered DAG layout, click any node or edge
+to highlight it plus its neighbors with a detail card (description,
+equation, evidence, effect), live `do()` overrides with baseline→changed
+values, flow tracing over selectable edge types, and search. It runs offline
+(single file, no CDN) and uses the same evaluation semantics as
+`propagate.py`.
+
 Related skill: **scm-setup** — build, extend, or repair the model itself
 (granularity levels, incremental build loop, file format, validation).

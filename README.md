@@ -25,7 +25,10 @@ codebase-scm/
 ├── scripts/
 │   ├── propagate.py             # --set/--trace/--fail/--tests runner
 │   ├── validate.py              # deterministic SCM validator
-│   └── example-scm.yaml         # minimal runnable example
+│   ├── visualize.py             # interactive graph page generator (+ --open)
+│   ├── graph_template.html      # page template used by visualize.py
+│   ├── example-scm.yaml         # minimal runnable example
+│   └── example-saas.yaml        # SaaS example used in the tour below
 └── templates/scm.template.yaml  # starting template for a new SCM
 ```
 
@@ -93,6 +96,18 @@ python3 scripts/propagate.py scripts/example-saas.yaml --tests api
 ```
 
 Then build a real one: invoke **scm-setup** inside your repository, confirm a granularity level (start with L1 landscape), and follow the incremental build loop — one bounded area at a time, evidence on everything, `validate.py` after every write.
+
+## Visualize it
+
+```bash
+python3 scripts/visualize.py myrepo/.codebase-scm/L1-landscape/scm.yaml --open
+```
+
+Writes a self-contained `graph.html` (offline, no CDN) and opens it:
+click-to-inspect nodes and edges, live `do()` overrides with before→after
+badges, flow tracing, and search — same evaluation semantics as
+`propagate.py`. In an agent session, "show me the graph" runs exactly
+this command.
 
 ## Design rules (the short version)
 

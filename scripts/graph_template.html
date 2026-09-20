@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codebase SCM — graph</title>
+<style>
+  :root{
+    --bg:#fafaf9; --panel:#ffffff; --ink:#1c1917; --ink-soft:#57534e; --ink-faint:#a8a29e;
+    --line:#e7e5e4; --line-soft:#f0eeec;
+    --accent:#4f46e5; --accent-soft:#eef2ff;
+    --changed:#b45309; --changed-soft:#fef3c7;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Helvetica,Arial,sans-serif;
+    --shadow:0 1px 2px rgba(28,25,23,.06),0 4px 16px rgba(28,25,23,.07);
+    --c-calls:#64748b; --c-data-flow:#0f766e; --c-fails-if:#b91c1c; --c-slows-when:#a16207;
+    --c-configures:#6d28d9; --c-covers:#4d7c0f; --c-refines:#78716c;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0c0a09; --panel:#1c1917; --ink:#e7e5e4; --ink-soft:#a8a29e; --ink-faint:#57534e;
+      --line:#292524; --line-soft:#1c1917;
+      --accent:#a5b4fc; --accent-soft:#1e1b4b;
+      --changed:#fbbf24; --changed-soft:#451a03;
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.4);
+      --c-calls:#94a3b8; --c-data-flow:#2dd4bf; --c-fails-if:#f87171; --c-slows-when:#facc15;
+      --c-configures:#c4b5fd; --c-covers:#a3e635; --c-refines:#a8a29e;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;overflow:hidden}
+  #app{display:flex;height:100%}
+  /* ---------- left rail ---------- */
+  #rail{width:248px;flex:0 0 248px;background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;overflow-y:auto;padding:14px 12px;gap:14px}
+  #rail h1{font-size:14px;margin:0;font-weight:650;letter-spacing:-.01em}
+  #rail .sub{color:var(--ink-soft);font-size:11.5px;margin:2px 0 0}
+  #rail .counts{display:flex;gap:6px;margin-top:8px}
+  .pill{background:var(--line-soft);border:1px solid var(--line);border-radius:999px;
+    padding:2px 9px;font-size:11px;color:var(--ink-soft);white-space:nowrap}
+  .sect{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-faint);margin:2px 0 6px}
+  #search{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;
+    background:var(--bg);color:var(--ink);font-size:12.5px;outline:none}
+  #search:focus{border-color:var(--accent)}
+  .row{display:flex;gap:6px;align-items:center}
+  select,input[type=number]{padding:6px 8px;border:1px solid var(--line);border-radius:8px;
+    background:var(--bg);color:var(--ink);font-size:12px;max-width:100%}
+  select{flex:1;min-width:0}
+  button{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;
+    padding:6px 10px;font-size:12px;cursor:pointer}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{filter:brightness(1.07);color:#fff}
+  button.ghost{border-color:transparent;color:var(--ink-soft)}
+  .checks{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;font-size:12px;color:var(--ink-soft)}
+  .checks label{display:flex;gap:6px;align-items:center;cursor:pointer}
+  .dot{width:9px;height:9px;border-radius:999px;flex:0 0 9px}
+  #legend{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--ink-soft)}
+  #legend .li{display:flex;gap:8px;align-items:center}
+  #legend code{font-family:var(--mono);font-size:11px}
+  #overrides{display:flex;flex-direction:column;gap:5px}
+  .ov{display:flex;align-items:center;gap:6px;background:var(--accent-soft);
+    border:1px solid var(--line);border-radius:8px;padding:4px 6px 4px 9px;font-size:11.5px}
+  .ov code{font-family:var(--mono);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ov button{padding:2px 7px;font-size:11px}
+  .hint{color:var(--ink-faint);font-size:11.5px;line-height:1.5}
+  /* ---------- canvas ---------- */
+  #stage{flex:1;position:relative;overflow:hidden}
+  #graph{position:absolute;inset:0;width:100%;height:100%;cursor:grab}
+  #graph.panning{cursor:grabbing}
+  #toolbar{position:absolute;top:12px;right:12px;display:flex;gap:6px}
+  #toolbar button{background:var(--panel);box-shadow:var(--shadow)}
+  /* ---------- detail panel ---------- */
+  #detail{position:absolute;top:12px;right:12px;width:330px;max-height:calc(100% - 24px);overflow-y:auto;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);
+    padding:14px;display:none}
+  #detail.open{display:block}
+  #detail h2{font-size:13.5px;margin:0 0 2px;font-family:var(--mono);font-weight:600;word-break:break-all}
+  #detail .x{float:right;border:none;background:none;font-size:15px;color:var(--ink-faint);cursor:pointer;padding:0 0 6px 6px}
+  .chip{display:inline-block;font-size:10.5px;border-radius:999px;padding:2px 9px;margin:4px 4px 0 0;
+    border:1px solid var(--line);color:var(--ink-soft);background:var(--line-soft)}
+  .chip.t{color:#fff;border:none}
+  #detail p.desc{color:var(--ink-soft);font-size:12.5px;line-height:1.55;margin:8px 0}
+  #detail .kv{font-size:12px;margin:5px 0;color:var(--ink-soft)}
+  #detail .kv b{color:var(--ink);font-weight:600}
+  #detail pre.expr{font-family:var(--mono);font-size:12px;background:var(--line-soft);
+    border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;margin:6px 0}
+  #detail ul.ev{margin:4px 0 4px 16px;padding:0;font-size:11.5px;color:var(--ink-soft)}
+  #detail ul.ev code{font-family:var(--mono);font-size:11px}
+  #detail .lnk{color:var(--accent);cursor:pointer;text-decoration:none;font-family:var(--mono);font-size:11.5px}
+  #detail .lnk:hover{text-decoration:underline}
+  #ivctl{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+  #ivctl .row{margin-top:6px}
+  /* ---------- svg ---------- */
+  .edge{fill:none;stroke-width:1.6}
+  .edge.dim{opacity:.12}
+  .edge.hot{stroke-width:3}
+  .edge.flow{stroke-width:2.6;stroke-dasharray:7 5;animation:dash 1s linear infinite}
+  @keyframes dash{to{stroke-dashoffset:-12}}
+  .node{cursor:pointer}
+  .node rect{fill:var(--panel);stroke:var(--line);stroke-width:1.4;rx:9}
+  .node:hover rect{stroke:var(--accent)}
+  .node.sel rect{stroke:var(--accent);stroke-width:2.4}
+  .node.changed rect{stroke:var(--changed);stroke-width:2.4;filter:drop-shadow(0 0 6px var(--changed))}
+  .node.dim{opacity:.22}
+  .node text{fill:var(--ink);font-family:var(--sans)}
+  .node .nid{font-size:11.5px;font-weight:600}
+  .node .nsub{font-size:10px;fill:var(--ink-faint)}
+  .node .nval{font-family:var(--mono);font-size:10.5px;font-weight:600}
+  .edge-lbl{font-family:var(--mono);font-size:10px;fill:var(--ink-soft);
+    paint-order:stroke;stroke:var(--bg);stroke-width:3px}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="rail">
+    <div>
+      <h1 id="title">codebase</h1>
+      <p class="sub" id="subtitle">granularity</p>
+      <div class="counts"><span class="pill" id="c-nodes"></span><span class="pill" id="c-edges"></span><span class="pill" id="c-models"></span></div>
+    </div>
+    <div>
+      <div class="sect">Search</div>
+      <input id="search" type="text" placeholder="filter nodes…" autocomplete="off">
+    </div>
+    <div>
+      <div class="sect">Trace flow</div>
+      <div class="row">
+        <select id="trace-src"><option value="">from node…</option></select>
+        <button id="trace-run" class="primary">Trace</button>
+      </div>
+      <div class="checks" id="trace-via" style="margin-top:7px"></div>
+      <div class="row" style="margin-top:6px"><button id="trace-clear" class="ghost">clear trace</button></div>
+      <p class="hint">Follows the checked edge types forward. Solid = reached, faded = untouched.</p>
+    </div>
+    <div>
+      <div class="sect">Overrides (do-interventions)</div>
+      <div id="overrides"><p class="hint" id="ov-empty">Select a node → set a value in the detail card. Live recompute.</p></div>
+      <div class="row" style="margin-top:6px"><button id="ov-clear" class="ghost">clear all</button></div>
+    </div>
+    <div>
+      <div class="sect">Edge types</div>
+      <div id="legend"></div>
+    </div>
+    <p class="hint">Click a node or edge to inspect. Click empty canvas to clear. Scroll to zoom, drag to pan.</p>
+  </aside>
+  <main id="stage">
+    <svg id="graph" role="img" aria-label="SCM graph"><defs id="defs"></defs><g id="viewport"><g id="edges"></g><g id="nodes"></g></g></svg>
+    <div id="toolbar"><button id="btn-fit">fit</button><button id="btn-clear">clear</button></div>
+    <aside id="detail"></aside>
+  </main>
+</div>
+<script>
+"use strict";
+const SCM = /*__SCM_DATA__*/null;
+const NS = "http://www.w3.org/2000/svg";
+const EDGE_TYPES = ["calls","data-flow","fails-if","slows-when","configures","covers","refines"];
+const EDGE_CSS = {"calls":"var(--c-calls)","data-flow":"var(--c-data-flow)","fails-if":"var(--c-fails-if)",
+  "slows-when":"var(--c-slows-when)","configures":"var(--c-configures)","covers":"var(--c-covers)","refines":"var(--c-refines)"};
+
+/* ================= model ================= */
+const nodes = {}; SCM.nodes.forEach(n => nodes[n.id] = n);
+const edges = (SCM.edges||[]).filter(e => e.type !== "refines");
+const children = {}, parents = {};
+Object.keys(nodes).forEach(id => { children[id] = []; parents[id] = []; });
+edges.forEach(e => { if (nodes[e.from] && nodes[e.to]) { children[e.from].push(e.to); parents[e.to].push(e.from); } });
+const nidVar = id => id.replace(/-/g, "_");
+
+/* ---- tiny expression evaluator (mirrors propagate.py SafeEval) ---- */
+function tokenize(s){
+  const toks=[]; let i=0;
+  const isId = c => /[A-Za-z_]/.test(c), isDig = c => /[0-9]/.test(c);
+  while(i < s.length){
+    const c = s[i];
+    if (/\s/.test(c)) { i++; continue; }
+    if (isDig(c) || (c === "." && isDig(s[i+1]))) {
+      let j=i; while(j<s.length && /[0-9.]/.test(s[j])) j++;
+      toks.push({t:"num", v:parseFloat(s.slice(i,j))}); i=j; continue;
+    }
+    if (isId(c)) {
+      let j=i; while(j<s.length && /[A-Za-z0-9_]/.test(s[j])) j++;
+      const w=s.slice(i,j);
+      toks.push({t:(["and","or","not","if","else","True","False","None"].includes(w)?"kw":"name"), v:w}); i=j; continue;
+    }
+    const two=s.substr(i,2);
+    if (["==","!=","<=",">="].includes(two)) { toks.push({t:"op",v:two}); i+=2; continue; }
+    if ("<>+-*/(),".includes(c)) { toks.push({t:c==="("||c===")"||c===","?c:"op", v:c}); i++; continue; }
+    throw new Error("bad char "+c);
+  }
+  return toks;
+}
+function parseFull(s){
+  const toks0 = tokenize(s);
+  let depth=0, ifAt=-1;
+  for(let i=0;i<toks0.length;i++){const t=toks0[i];
+    if(t.v==="(")depth++; else if(t.v===")")depth--;
+    else if(depth===0&&t.t==="kw"&&t.v==="if"){ifAt=i;break;}}
+  if(ifAt>=0){
+    // find matching else at depth 0 after ifAt
+    let elseAt=-1;
+    for(let i=ifAt+1;i<toks0.length;i++){const t=toks0[i];
+      if(t.v==="(")depth++; else if(t.v===")")depth--;
+      else if(depth===0&&t.t==="kw"&&t.v==="else"){elseAt=i;break;}}
+    if(elseAt<0) throw new Error("if without else");
+    const src = toks => toks.map(t=>t.v).join(" ");
+    return {k:"if",
+      x:parseNoIf(toks0.slice(0,ifAt)),
+      c:parseNoIf(toks0.slice(ifAt+1,elseAt)),
+      y:parseFullInner(toks0.slice(elseAt+1))};
+  }
+  return parseNoIf(toks0);
+}
+function parseNoIf(toks){
+  let pos=0;
+  const peek=()=>toks[pos], next=()=>toks[pos++];
+  function expect(v){const t=next();if(!t||t.v!==v)throw new Error("expected "+v);}
+  function pOr(){let l=pAnd();while(peek()&&peek().t==="kw"&&peek().v==="or"){next();l={k:"or",l,r:pAnd()};}return l;}
+  function pAnd(){let l=pNot();while(peek()&&peek().t==="kw"&&peek().v==="and"){next();l={k:"and",l,r:pNot()};}return l;}
+  function pNot(){if(peek()&&peek().t==="kw"&&peek().v==="not"){next();return{k:"not",x:pNot()};}return pCmp();}
+  function pCmp(){let l=pAdd();while(peek()&&peek().t==="op"&&["==","!=","<",">","<=",">="].includes(peek().v)){const o=next().v;l={k:"cmp",o,l,r:pAdd()};}return l;}
+  function pAdd(){let l=pMul();while(peek()&&peek().t==="op"&&(peek().v==="+"||peek().v==="-")){const o=next().v;l={k:"bin",o,l,r:pMul()};}return l;}
+  function pMul(){let l=pUn();while(peek()&&peek().t==="op"&&(peek().v==="*"||peek().v==="/"||peek().v==="%")){const o=next().v;l={k:"bin",o,l,r:pUn()};}return l;}
+  function pUn(){if(peek()&&peek().t==="op"&&(peek().v==="+"||peek().v==="-")){const o=next().v;return{k:"un",o,x:pUn()};}return pAtom();}
+  function pAtom(){
+    const t=next();if(!t)throw new Error("unexpected end");
+    if(t.t==="num")return{k:"num",v:t.v};
+    if(t.t==="kw"&&(t.v==="True"||t.v==="False"))return{k:"bool",v:t.v==="True"};
+    if(t.t==="kw"&&t.v==="None")return{k:"none"};
+    if(t.t==="name"){
+      if((t.v==="min"||t.v==="max")&&peek()&&peek().v==="("){next();const a=[pOr()];while(peek()&&peek().v===","){next();a.push(pOr());}expect(")");return{k:"call",f:t.v,a};}
+      if(peek()&&peek().t==="kw"&&(peek().v==="if"||peek().v==="else"))throw new Error("stray conditional");
+      return{k:"name",v:t.v};
+    }
+    if(t.v==="("){const e=pOr();expect(")");return e;}
+    throw new Error("unexpected "+t.v);
+  }
+  const tree=pOr();
+  if(pos<toks.length)throw new Error("trailing tokens");
+  return tree;
+}
+function parseFullInner(toks){ // recursive for nested conditionals
+  return parseFull(toks.map(t=>t.v).join(" "));
+}
+const num = v => (typeof v === "boolean" ? (v?1:0) : v);
+function ev(t, env){
+  switch(t.k){
+    case "num": case "bool": return t.v;
+    case "none": return null;
+    case "name": return (t.v in env) ? env[t.v] : null;
+    case "not": { const v=ev(t.x,env); return v===null?null:!v; }
+    case "and": case "or": {
+      const a=ev(t.l,env), b=ev(t.r,env);
+      if(a===null||b===null) return null;
+      return t.k==="and" ? (a&&b) : (a||b);
+    }
+    case "un": { const v=ev(t.x,env); if(v===null)return null; const n=num(v); return t.o==="-"?-n:+n; }
+    case "bin": {
+      const a=ev(t.l,env), b=ev(t.r,env);
+      if(a===null||b===null) return null;
+      const x=num(a), y=num(b);
+      if(t.o==="+")return x+y; if(t.o==="-")return x-y; if(t.o==="*")return x*y;
+      if(t.o==="/")return y!==0?x/y:null; if(t.o==="%")return y!==0?x%y:null;
+      return null;
+    }
+    case "cmp": {
+      const a=ev(t.l,env), b=ev(t.r,env);
+      if(a===null||b===null) return null;
+      switch(t.o){case"==":return a==b;case"!=":return a!=b;case"<":return a<b;
+        case">":return a>b;case"<=":return a<=b;case">=":return a>=b;}
+      return null;
+    }
+    case "if": { const c=ev(t.c,env); if(c===null)return null; return ev(c?t.x:t.y,env); }
+    case "call": {
+      const vs=t.a.map(x=>ev(x,env));
+      if(vs.some(v=>v===null))return null;
+      const ns=vs.map(num);
+      return t.f==="min"?Math.min(...ns):Math.max(...ns);
+    }
+  }
+  return null;
+}
+const exprCache = {};
+function evalExpr(src, env){
+  try{
+    if(!exprCache[src]) exprCache[src]=parseFull(src);
+    return ev(exprCache[src], env);
+  }catch(err){ console.warn("expr",err); return null; }
+}
+
+/* ---- topological evaluation (mirrors propagate.py) ---- */
+function topo(){
+  const inc={}; Object.keys(nodes).forEach(id=>inc[id]=0);
+  edges.forEach(e=>{inc[e.to]++;});
+  const q=Object.keys(inc).filter(id=>inc[id]===0).sort();
+  const order=[];
+  while(q.length){const n=q.shift();order.push(n);
+    children[n].forEach(m=>{if(--inc[m]===0)q.push(m);});}
+  return order;
+}
+const ORDER = topo();
+function nodeDefault(n){ return ("default" in n) ? n.default : null; }
+function evaluate(interv){
+  const values={}, unknown=new Set();
+  ORDER.forEach(id=>{
+    const n=nodes[id];
+    if(id in interv){ values[id]=interv[id]; return; }
+    const m=n.model;
+    if(m && m.expr){
+      const env={}; let missing=false;
+      parents[id].forEach(p=>{
+        const pv=(p in values)?values[p]:nodeDefault(nodes[p]);
+        if(pv===null||pv===undefined) missing=true;
+        env[nidVar(p)]=pv;
+      });
+      if(missing){values[id]=null;unknown.add(id);return;}
+      try{const v=evalExpr(m.expr,env);values[id]=v;if(v===null||v===undefined)unknown.add(id);}
+      catch(e){values[id]=null;unknown.add(id);}
+    }else{
+      const d=nodeDefault(n); values[id]=d;
+      if((d===null||d===undefined)&&parents[id].length)unknown.add(id);
+    }
+  });
+  return {values,unknown};
+}
+const BASE = evaluate({});
+function blastRadius(starts){
+  const seen=new Set(), q=[...starts];
+  while(q.length){const n=q.shift();if(seen.has(n))continue;seen.add(n);children[n].forEach(m=>q.push(m));}
+  return seen;
+}
+
+/* ================= layout (layered DAG, left→right) ================= */
+const NW=176, NH=60, GX=252, GY=88;
+const rank={}, layers=[];
+ORDER.forEach(id=>{
+  let r=0;
+  parents[id].forEach(p=>{r=Math.max(r,(rank[p]||0)+1);});
+  rank[id]=r; (layers[r]=layers[r]||[]).push(id);
+});
+// barycenter crossing reduction
+for(let pass=0;pass<4;pass++){
+  layers.forEach((layer,r)=>{
+    if(r===0)return;
+    const pos={}; layers[r-1].forEach((id,i)=>pos[id]=i);
+    layer.sort((a,b)=>{
+      const ba=parents[a].length?parents[a].reduce((s,p)=>s+(pos[p]??0),0)/parents[a].length:0;
+      const bb=parents[b].length?parents[b].reduce((s,p)=>s+(pos[p]??0),0)/parents[b].length:0;
+      return ba-bb;
+    });
+  });
+}
+const P={};
+layers.forEach((layer,r)=>{
+  const h=(layer.length-1)*GY;
+  layer.forEach((id,i)=>{P[id]={x:r*GX, y:i*GY-h/2};});
+});
+const allX=Object.values(P).map(p=>p.x), allY=Object.values(P).map(p=>p.y);
+const BBOX={x0:Math.min(...allX)-NW, y0:Math.min(...allY)-NH, x1:Math.max(...allX)+NW, y1:Math.max(...allY)+NH};
+// parallel-edge offsets
+const pairIdx={};
+edges.forEach(e=>{
+  const k=e.from+"→"+e.to;
+  pairIdx[k]=(pairIdx[k]||0);
+  e._pi=pairIdx[k]; pairIdx[k]++;
+  const k2=e.to+"→"+e.from;
+  e._opp=(pairIdx[k2]||0)>0;
+});
+function edgePath(e){
+  const a=P[e.from], b=P[e.to];
+  const x1=a.x+NW/2, y1=a.y, x2=b.x-NW/2, y2=b.y;
+  const dx=Math.max(40,(x2-x1)*0.5);
+  const off=(e._pi-( (pairIdx[e.from+"→"+e.to]-1)/2 ))*14 + (e._opp?10:0);
+  return `M${x1},${y1+off*0.3} C${x1+dx},${y1+off} ${x2-dx},${y2+off} ${x2},${y2+off*0.3}`;
+}
+
+/* ================= state + render ================= */
+const state={sel:null, interv:{}, traceSrc:"", traceVia:new Set(["calls","data-flow"]), traced:new Set(), tracedEdges:new Set(), filter:""};
+let live=null; // {values,unknown,changed,radius} or null
+
+function el(tag, attrs, parent){
+  const n=document.createElementNS(NS,tag);
+  for(const k in attrs){ if(k==="text")n.textContent=attrs[k]; else n.setAttribute(k,attrs[k]); }
+  if(parent)parent.appendChild(n);
+  return n;
+}
+const svg=document.getElementById("graph"), viewport=document.getElementById("viewport"),
+      gE=document.getElementById("edges"), gN=document.getElementById("nodes");
+const defs=document.getElementById("defs");
+Object.keys(EDGE_CSS).forEach(t=>{
+  const m=el("marker",{id:"ar-"+t,viewBox:"0 0 10 10",refX:8,refY:5,markerWidth:7,markerHeight:7,orient:"auto-start-reverse"},defs);
+  el("path",{d:"M0,0 L10,5 L0,10 z",fill:EDGE_CSS[t]},m);
+});
+const fmtVal=v=>(v===null||v===undefined)?"∅":(typeof v==="number"?(Math.round(v*1000)/1000).toString():String(v));
+
+function recompute(){
+  const keys=Object.keys(state.interv);
+  if(!keys.length){live=null;return;}
+  const r=evaluate(state.interv);
+  const changed=Object.keys(nodes).filter(id=>r.values[id]!==BASE.values[id]);
+  live={values:r.values,unknown:r.unknown,changed,radius:blastRadius(keys)};
+}
+function nodeVal(id){
+  if(live) return {b:BASE.values[id], v:live.values[id], ch:live.changed.includes(id)};
+  return {b:BASE.values[id], v:BASE.values[id], ch:false};
+}
+function isDimNode(id){
+  if(state.filter && !id.toLowerCase().includes(state.filter)) return true;
+  if(state.traced.size) return !state.traced.has(id);
+  if(live) return !live.radius.has(id);
+  if(state.sel&&state.sel.kind==="node"){
+    if(id===state.sel.id) return false;
+    const s=state.sel.id;
+    if(parents[s].includes(id)||children[s].includes(id)) return false;
+    return true;
+  }
+  if(state.sel&&state.sel.kind==="edge"){
+    const e=state.sel.edge;
+    return !(id===e.from||id===e.to);
+  }
+  return false;
+}
+function isDimEdge(e){
+  if(state.tracedEdges.size) return !state.tracedEdges.has(e);
+  if(live) return !(live.radius.has(e.from)&&live.radius.has(e.to));
+  if(state.sel&&state.sel.kind==="node"){
+    const s=state.sel.id;
+    return !(e.from===s||e.to===s);
+  }
+  if(state.sel&&state.sel.kind==="edge") return e!==state.sel.edge;
+  return false;
+}
+function render(){
+  recompute();
+  gE.innerHTML=""; gN.innerHTML="";
+  edges.forEach((e,idx)=>{
+    const cls=["edge"];
+    if(isDimEdge(e))cls.push("dim");
+    if(state.tracedEdges.has(e))cls.push("flow");
+    if(state.sel&&state.sel.kind==="edge"&&state.sel.edge===e)cls.push("hot");
+    const p=el("path",{d:edgePath(e),"class":cls.join(" "),stroke:EDGE_CSS[e.type]||"#888",
+      "marker-end":`url(#ar-${e.type})`,"data-idx":idx},gE);
+    p.style.pointerEvents="stroke"; p.style.cursor="pointer";
+    p.addEventListener("click",ev=>{ev.stopPropagation();select({kind:"edge",edge:e});});
+    // fat invisible hit path
+    const h=el("path",{d:edgePath(e),stroke:"transparent","stroke-width":14,fill:"none","data-idx":idx},gE);
+    h.style.cursor="pointer";
+    h.addEventListener("click",ev=>{ev.stopPropagation();select({kind:"edge",edge:e});});
+  });
+  Object.keys(nodes).forEach(id=>{
+    const n=nodes[id], p=P[id], vv=nodeVal(id);
+    const g=el("g",{"class":"node"+(isDimNode(id)?" dim":"")+
+      ((state.sel&&state.sel.kind==="node"&&state.sel.id===id)?" sel":"")+(vv.ch?" changed":""),
+      transform:`translate(${p.x-NW/2},${p.y-NH/2})`},gN);
+    el("rect",{width:NW,height:NH,rx:9},g);
+    const t=el("text",{x:12,y:21,"class":"nid"},g);
+    const label=id.length>24?id.slice(0,23)+"…":id; t.textContent=label;
+    const s=el("text",{x:12,y:36,"class":"nsub"},g);
+    s.textContent=n.type+(n.model&&n.model.expr?" · ƒ":"");
+    const v=el("text",{x:12,y:51,"class":"nval"},g);
+    v.textContent=vv.ch?`${fmtVal(vv.b)} → ${fmtVal(vv.v)}`:fmtVal(vv.v);
+    if(vv.ch)v.setAttribute("fill","var(--changed)");
+    g.addEventListener("click",ev=>{ev.stopPropagation();select({kind:"node",id});});
+  });
+  renderRail(); renderDetail();
+}
+function select(s){ state.sel=s; render(); }
+
+/* ---- rail ---- */
+function renderRail(){
+  const ov=document.getElementById("overrides");
+  const keys=Object.keys(state.interv);
+  ov.innerHTML = keys.length?"":'<p class="hint" id="ov-empty">Select a node → set a value in the detail card. Live recompute.</p>';
+  keys.forEach(id=>{
+    const d=document.createElement("div"); d.className="ov";
+    const c=document.createElement("code"); c.textContent=`${id} = ${fmtVal(state.interv[id])}`; d.appendChild(c);
+    const x=document.createElement("button"); x.textContent="✕";
+    x.onclick=()=>{delete state.interv[id]; render();};
+    d.appendChild(x); ov.appendChild(d);
+  });
+}
+/* ---- detail ---- */
+const detail=document.getElementById("detail");
+function evList(ev){
+  if(!ev||!ev.length)return "";
+  return `<div class="kv"><b>evidence</b><ul class="ev">${ev.map(e=>`<li><code>${esc(e)}</code></li>`).join("")}</ul></div>`;
+}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function linkChips(ids){
+  return ids.map(id=>`<a class="lnk" data-node="${esc(id)}">${esc(id)}</a>`).join(" · ")||"<span class='hint'>none</span>";
+}
+function renderDetail(){
+  const s=state.sel;
+  if(!s){detail.className="";detail.innerHTML="";return;}
+  detail.className="open";
+  let h=`<button class="x" id="d-x">✕</button>`;
+  if(s.kind==="node"){
+    const n=nodes[s.id], vv=nodeVal(s.id);
+    h+=`<h2>${esc(s.id)}</h2><span class="chip">${esc(n.type)}</span>`;
+    if(vv.ch)h+=`<span class="chip" style="border-color:var(--changed);color:var(--changed)">${fmtVal(vv.b)} → ${fmtVal(vv.v)}</span>`;
+    else h+=`<span class="chip">= ${fmtVal(vv.v)}</span>`;
+    h+=`<p class="desc">${esc(n.description||"")}</p>`;
+    if(n.domain)h+=`<div class="kv"><b>domain</b> ${esc(n.domain)} &nbsp; <b>default</b> <code>${fmtVal(nodeDefault(n))}</code> &nbsp; <b>state</b> ${n.owns_state?"yes":"no"}</div>`;
+    if(n.slo)h+=`<div class="kv"><b>slo</b> ${esc(n.slo)}</div>`;
+    if(n.model&&n.model.expr)h+=`<div class="kv"><b>equation</b> (${esc(n.model.kind)})</div><pre class="expr">${esc(n.model.expr)}</pre>`;
+    else if(n.unmodeled_reason)h+=`<div class="kv"><b>no equation</b> — ${esc(n.unmodeled_reason.reason)}</div><p class="desc">${esc(n.unmodeled_reason.detail||"")}</p>`;
+    h+=evList(n.evidence);
+    h+=`<div class="kv"><b>in</b> ${linkChips(parents[s.id])}</div><div class="kv"><b>out</b> ${linkChips(children[s.id])}</div>`;
+    // intervention controls
+    h+=`<div id="ivctl"><div class="sect">Override value (do-intervention)</div><div class="row">`;
+    const cur=state.interv[s.id];
+    if(n.domain==="numeric"){
+      h+=`<input type="number" id="iv-num" step="any" value="${cur!==undefined?cur:""}" placeholder="number"> <button class="primary" id="iv-go">set</button> `;
+    }else{
+      h+=`<button id="iv-true" class="primary">true</button> <button id="iv-false">false</button> `;
+    }
+    h+=`<button id="iv-clear" class="ghost">clear</button></div></div>`;
+  }else{
+    const e=s.edge;
+    h+=`<h2 style="font-size:12px">${esc(e.from)} → ${esc(e.to)}</h2>`;
+    h+=`<span class="chip t" style="background:${EDGE_CSS[e.type]}">${esc(e.type)}</span>`;
+    h+=`<p class="desc">${esc(e.description||"")}</p>`;
+    if(e.effect)h+=`<div class="kv"><b>effect</b> ${esc(e.effect.description||"")}${e.effect.magnitude?` · <b>${esc(e.effect.magnitude)}</b>`:""}${e.effect.observed_in?` · ${esc(e.effect.observed_in)}`:""}</div>`;
+    h+=evList(e.evidence);
+    h+=`<div class="kv"><b>endpoints</b> ${linkChips([e.from,e.to])}</div>`;
+  }
+  detail.innerHTML=h;
+  document.getElementById("d-x").onclick=()=>select(null);
+  detail.querySelectorAll("[data-node]").forEach(a=>{a.onclick=()=>select({kind:"node",id:a.dataset.node});});
+  const go=v=>{state.interv[s.id]=v;render();};
+  const bT=document.getElementById("iv-true"), bF=document.getElementById("iv-false"),
+        bG=document.getElementById("iv-go"), bC=document.getElementById("iv-clear");
+  if(bT)bT.onclick=()=>go(true);
+  if(bF)bF.onclick=()=>go(false);
+  if(bG)bG.onclick=()=>{const v=parseFloat(document.getElementById("iv-num").value);if(!isNaN(v))go(v);};
+  if(bC)bC.onclick=()=>{delete state.interv[s.id];render();};
+}
+
+/* ---- trace ---- */
+function runTrace(){
+  const src=state.traceSrc;
+  state.traced=new Set(); state.tracedEdges=new Set();
+  if(src&&nodes[src]){
+    const seen=new Set([src]), q=[src]; state.traced.add(src);
+    while(q.length){const n=q.shift();
+      edges.forEach(e=>{
+        if(e.from===n&&state.traceVia.has(e.type)&&!seen.has(e.to)){
+          seen.add(e.to);state.traced.add(e.to);state.tracedEdges.add(e);q.push(e.to);
+        }
+      });
+    }
+  }
+  render();
+}
+
+/* ---- pan / zoom ---- */
+let scale=1, tx=0, ty=0;
+function applyT(){viewport.setAttribute("transform",`translate(${tx},${ty}) scale(${scale})`);}
+function fit(){
+  const r=svg.getBoundingClientRect();
+  const w=BBOX.x1-BBOX.x0, h=BBOX.y1-BBOX.y0;
+  scale=Math.min(r.width/w, r.height/h, 1.4)*0.96;
+  tx=(r.width-w*scale)/2-BBOX.x0*scale; ty=(r.height-h*scale)/2-BBOX.y0*scale;
+  applyT();
+}
+svg.addEventListener("wheel",ev=>{
+  ev.preventDefault();
+  const r=svg.getBoundingClientRect();
+  const mx=ev.clientX-r.left, my=ev.clientY-r.top;
+  const f=ev.deltaY<0?1.12:1/1.12, ns=Math.min(3,Math.max(.2,scale*f));
+  tx=mx-(mx-tx)*(ns/scale); ty=my-(my-ty)*(ns/scale); scale=ns; applyT();
+},{passive:false});
+let drag=null;
+svg.addEventListener("mousedown",ev=>{drag={x:ev.clientX,y:ev.clientY,tx,ty};svg.classList.add("panning");});
+window.addEventListener("mousemove",ev=>{if(drag){tx=drag.tx+(ev.clientX-drag.x);ty=drag.ty+(ev.clientY-drag.y);applyT();}});
+window.addEventListener("mouseup",()=>{drag=null;svg.classList.remove("panning");});
+svg.addEventListener("click",()=>select(null));
+document.getElementById("btn-fit").onclick=fit;
+document.getElementById("btn-clear").onclick=()=>{select(null);state.traced=new Set();state.tracedEdges=new Set();state.filter="";document.getElementById("search").value="";render();};
+document.getElementById("ov-clear").onclick=()=>{state.interv={};render();};
+
+/* ---- init chrome ---- */
+document.getElementById("title").textContent=SCM.codebase||"codebase";
+document.getElementById("subtitle").textContent=(SCM.granularity||"")+(SCM.updated?` · updated ${SCM.updated}`:"");
+document.getElementById("c-nodes").textContent=`${Object.keys(nodes).length} nodes`;
+document.getElementById("c-edges").textContent=`${edges.length} edges`;
+document.getElementById("c-models").textContent=`${Object.values(nodes).filter(n=>n.model&&n.model.expr).length} equations`;
+const sel=document.getElementById("trace-src");
+Object.keys(nodes).sort().forEach(id=>{const o=document.createElement("option");o.value=id;o.textContent=id;sel.appendChild(o);});
+sel.onchange=()=>{state.traceSrc=sel.value;};
+const viaBox=document.getElementById("trace-via");
+EDGE_TYPES.filter(t=>t!=="refines").forEach(t=>{
+  const l=document.createElement("label");
+  const c=document.createElement("input");c.type="checkbox";c.checked=state.traceVia.has(t);
+  c.onchange=()=>{c.checked?state.traceVia.add(t):state.traceVia.delete(t);};
+  const d=document.createElement("span");d.className="dot";d.style.background=EDGE_CSS[t];
+  l.appendChild(c);l.appendChild(d);l.appendChild(document.createTextNode(t));
+  viaBox.appendChild(l);
+});
+document.getElementById("trace-run").onclick=runTrace;
+document.getElementById("trace-clear").onclick=()=>{state.traced=new Set();state.tracedEdges=new Set();render();};
+document.getElementById("search").addEventListener("input",ev=>{state.filter=ev.target.value.trim().toLowerCase();render();});
+const leg=document.getElementById("legend");
+EDGE_TYPES.forEach(t=>{
+  if(!edges.some(e=>e.type===t))return;
+  const d=document.createElement("div");d.className="li";
+  const s=document.createElement("span");s.className="dot";s.style.background=EDGE_CSS[t];
+  const c=document.createElement("code");c.textContent=t;
+  d.appendChild(s);d.appendChild(c);leg.appendChild(d);
+});
+window.addEventListener("resize",fit);
+render(); fit();
+</script>
+</body>
+</html>
